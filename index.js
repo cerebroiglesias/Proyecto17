@@ -1,5 +1,7 @@
 //App en ES5 en
 const express = require('express');
+const session = require('express-session');
+const fileStoreSession = require('session-file-store')(session);
 const bodyParser = require('body-parser');
 const cookie = require('cookie');
 const cookieParser = require('cookie-parser');
@@ -16,30 +18,37 @@ const app = express();
 //uso de bodyParser para leer form
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cookieParser());
+app.use(session({
+    store: new fileStoreSession({
+        path: path.join(__dirname, 'sessions'),
+        ttl: 60
+    }),
+    secret: 'proyecto17',
+    resave: false,
+    saveUninitialized: true,
+    cookie: { maxAge: 60000 }
+}))
 
-//peticion de index
-app.get('/set-cookie', (req, res) => {
-    var query = url.parse(req.url, true).query;
-    if(!query || !query.nombre || !query.valor){
-        res.send(`{error:'set-cookie: falta nombre ó valor'`)
-        return;
-    }
-    res.setHeader('Set-Cookie', cookie.serialize(query.nombre, query.valor, { maxAge: query.tiempo, path: '/' }));
-    res.status(200).send('Cookie guardada' + query.tiempo);
-});
-
-app.get('/clear-cookie', (req, res) => {
+const isAuthenticated = (req, res, next) => {
     var query = url.parse(req.url, true).query;
     if(!query || !query.nombre){
-        res.send(`{error:'set-cookie: falta nombre'`)
-        return;
+        if(req.session && req.session.name){
+            req.session.contador++;
+            next();
+        }else{
+            res.send(`{error:'set-cookie: usuario no loggeado'}`)
+        }
+    }else{
+        req.session.name = query.nombre;
+        req.session.contador = 1;
+        next();
     }
-    res.clearCookie(query.nombre);
-    res.status(200).send('Cookie eliminada');
-});
+}
 
-app.get('/get-cookies', (req, res) => {
-    res.send(req.cookies);
+app.use('/', isAuthenticated);
+
+app.get('/', (req, res) => {
+    res.send(`Bienvenido ${req.session.name}, visitas: ${req.session.contador}`);
 });
 
 //Levantamos el server
